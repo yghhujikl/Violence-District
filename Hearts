@@ -1,5 +1,7 @@
+-- [[ HEART AUTO FARM ]] --
 
 local folder = workspace:WaitForChild("HeartCollectables")
+local last_heart
 
 local players = game:GetService("Players")
 local localplayer = players.LocalPlayer
@@ -7,9 +9,8 @@ local localplayer = players.LocalPlayer
 local camera = workspace.CurrentCamera
 local screen_size = camera.ViewportSize
 
--- SPEED SETTINGS
-local snap_distance = 100000
-local offset = Vector3.new(0, 2, 0)
+-- speed (bigger = faster)
+local tween_speed = 150
 
 function draw(type)
     local new_draw = Drawing.new(type)
@@ -29,21 +30,6 @@ function magnitude(point1, point2)
     return math.sqrt(dx*dx + dy*dy + dz*dz)
 end
 
--- COUNTER STUFF
-local start_time = os.clock()
-local collected = 0
-local seen = {}
-
--- track when a heart disappears (means collected)
-local function updateCollectedCount()
-    for heart, _ in pairs(seen) do
-        if not is_valid(heart) then
-            seen[heart] = nil
-            collected = collected + 1
-        end
-    end
-end
-
 function get_closest_heart()
     local closest_heart = nil
     local closest_distance = math.huge
@@ -56,8 +42,6 @@ function get_closest_heart()
 
     for _, heart in next, folder:GetChildren() do
         if is_valid(heart) and heart.Name == "HeartPickup" and heart:IsA("MeshPart") then
-            seen[heart] = true
-
             local ok, heart_distance = pcall(function()
                 return magnitude(heart.Position, humanoidrootpart.Position)
             end)
@@ -70,6 +54,43 @@ function get_closest_heart()
     end
 
     return closest_heart, closest_distance
+end
+
+local can_tween = true
+
+function tween_position(object, target, duration)
+    local start_time = os.clock()
+    local start_pos = object.Position
+    local end_time = start_time + duration
+    can_tween = false
+
+    while os.clock() < end_time do
+        if (not is_valid(object)) or (not is_valid(target)) then
+            break
+        end
+
+        local alpha = (os.clock() - start_time) / duration
+        if alpha > 1 then alpha = 1 end
+
+        local tx, ty, tz = target.Position.X, target.Position.Y, target.Position.Z
+        local sx, sy, sz = start_pos.X, start_pos.Y, start_pos.Z
+
+        object.Position = Vector3.new(
+            sx + (tx - sx) * alpha,
+            sy + (ty - sy) * alpha,
+            sz + (tz - sz) * alpha
+        )
+
+        -- stop physics pushing you away
+        pcall(function()
+            object.Velocity = Vector3.new(0, 0, 0)
+        end)
+    end
+
+    can_tween = true
+    pcall(function()
+        object.Position = target.Position + Vector3.new(0, 2, 0)
+    end)
 end
 
 function set_noclip()
@@ -95,49 +116,36 @@ function update_auto_farm()
 
     set_noclip()
 
-    updateCollectedCount()
-
     local character = localplayer.Character
-    if not character then
-        status.Text = "Heart Auto Farm: No character"
-        return
-    end
+    if character then
+        local humanoidrootpart = character:FindFirstChild("HumanoidRootPart")
+        if humanoidrootpart then
+            local closest_heart, heart_distance = get_closest_heart()
 
-    local humanoidrootpart = character:FindFirstChild("HumanoidRootPart")
-    if not humanoidrootpart then
-        status.Text = "Heart Auto Farm: No HRP"
-        return
-    end
+            if is_valid(closest_heart) then
+                last_heart = closest_heart
+                humanoidrootpart.Velocity = Vector3.new(0, 0, 0)
 
-    local closest_heart, heart_distance = get_closest_heart()
+                status.Text = "Heart Auto Farm: Moving | Dist: " .. math.floor(heart_distance)
 
-    -- per hour estimate
-    local elapsed = os.clock() - start_time
-    local perHour = 0
-    if elapsed > 1 then
-        perHour = math.floor((collected / elapsed) * 3600)
-    end
-
-    if is_valid(closest_heart) then
-        humanoidrootpart.Velocity = Vector3.new(0, 0, 0)
-
-        -- SNAP
-        humanoidrootpart.Position = closest_heart.Position + offset
-
-        status.Text =
-            "Heart Auto Farm " .. math.floor(heart_distance) ..
-            " " .. tostring(collected) ..
-            " " .. tostring(perHour) ..
-            " " .. tostring(#folder:GetChildren())
+                if can_tween then
+                    spawn(function()
+                        tween_position(humanoidrootpart, closest_heart, heart_distance / tween_speed)
+                    end)
+                end
+            else
+                status.Text = "Heart Auto Farm: No hearts found"
+                humanoidrootpart.Velocity = Vector3.new(0, 0, 0)
+            end
+        else
+            status.Text = "Heart Auto Farm: Can't find RootPart"
+        end
     else
-        status.Text =
-            "Heart Auto Farm: No hearts found" ..
-            " | idk bru" .. tostring(collected) ..
-            " | idc bru" .. tostring(perHour)
+        status.Text = "Heart Auto Farm: Can't find Character"
     end
 end
 
 while true do
     update_auto_farm()
-    task.wait(0)
+    task.wait(0.05)
 end
