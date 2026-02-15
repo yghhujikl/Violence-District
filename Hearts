@@ -1,4 +1,3 @@
--- [[ HEART AUTO FARM (INSANELY FAST + SNAP + PER HOUR) ]] --
 
 local folder = workspace:WaitForChild("HeartCollectables")
 
@@ -9,7 +8,7 @@ local camera = workspace.CurrentCamera
 local screen_size = camera.ViewportSize
 
 -- SPEED SETTINGS
-local snap_distance = 25
+local snap_distance = 100000
 local offset = Vector3.new(0, 2, 0)
 
 function draw(type)
