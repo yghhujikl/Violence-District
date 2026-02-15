@@ -140,5 +140,5 @@ end
 
 while true do
     update_auto_farm()
-    task.wait(0.01)
+    task.wait(0)
 end
