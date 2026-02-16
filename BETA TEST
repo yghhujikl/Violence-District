@@ -1,0 +1,160 @@
+local players = game:GetService("Players")
+local localPlayer = players.LocalPlayer
+
+-- List of all valid weapons
+local validWeapons = {
+    "Twist of Fate",
+    "Motion Tracker",
+    "Gate",
+    "Flashlight",
+    "Bandage",
+    "Parrying Dagger",
+    "Adrenaline Shot",
+    "Shadow Clone",
+    "WaxBound Candle",
+}
+
+-- Convert to set for faster lookup
+local weaponSet = {}
+for _, weapon in ipairs(validWeapons) do
+    weaponSet[weapon] = true
+end
+
+-- Function to get player's weapon - FIXED VERSION
+local function getPlayerWeapon(player)
+    if not player or not player.Character then return nil end
+    
+    local character = player.Character
+    
+    -- Check for weapon LocalScript in character (this is where weapons are stored!)
+    for _, child in pairs(character:GetChildren()) do
+        if child:IsA("LocalScript") and weaponSet[child.Name] then
+            return child.Name
+        end
+    end
+    
+    return nil
+end
+
+-- Function to print all players and their weapons
+local function printAllPlayerWeapons()
+    print("==========================================")
+    print("PLAYER WEAPON TRACKER")
+    print("==========================================")
+    
+    local weaponCount = {}
+    
+    for _, player in pairs(players:GetPlayers()) do
+        local weapon = getPlayerWeapon(player)
+        local weaponText = weapon or "None"
+        
+        if weapon then
+            weaponCount[weapon] = (weaponCount[weapon] or 0) + 1
+        end
+        
+        if player == localPlayer then
+            print("[YOU] " .. player.Name .. " - Weapon: " .. weaponText)
+        else
+            print(player.Name .. " - Weapon: " .. weaponText)
+        end
+    end
+    
+    print("==========================================")
+    print("WEAPON SUMMARY:")
+    for weapon, count in pairs(weaponCount) do
+        print("  " .. weapon .. ": " .. count .. " player(s)")
+    end
+    print("==========================================")
+end
+
+-- Initial print
+print("Player Weapon Tracker loaded!")
+print("Scanning for weapons...")
+wait(1)
+printAllPlayerWeapons()
+
+-- Continuous monitoring loop
+spawn(function()
+    while true do
+        wait(5) -- Check every 5 seconds
+        printAllPlayerWeapons()
+    end
+end)
+
+-- Monitor when players equip/unequip weapons
+spawn(function()
+    for _, player in pairs(players:GetPlayers()) do
+        if player.Character then
+            player.Character.ChildAdded:Connect(function(child)
+                if child:IsA("LocalScript") and weaponSet[child.Name] then
+                    print("[EQUIPPED] " .. player.Name .. " equipped: " .. child.Name)
+                end
+            end)
+            
+            player.Character.ChildRemoved:Connect(function(child)
+                if child:IsA("LocalScript") and weaponSet[child.Name] then
+                    print("[REMOVED] " .. player.Name .. " removed: " .. child.Name)
+                end
+            end)
+        end
+        
+        player.CharacterAdded:Connect(function(character)
+            wait(1)
+            local weapon = getPlayerWeapon(player)
+            if weapon then
+                print("[SPAWNED] " .. player.Name .. " spawned with: " .. weapon)
+            end
+            
+            -- Monitor this new character
+            character.ChildAdded:Connect(function(child)
+                if child:IsA("LocalScript") and weaponSet[child.Name] then
+                    print("[EQUIPPED] " .. player.Name .. " equipped: " .. child.Name)
+                end
+            end)
+            
+            character.ChildRemoved:Connect(function(child)
+                if child:IsA("LocalScript") and weaponSet[child.Name] then
+                    print("[REMOVED] " .. player.Name .. " removed: " .. child.Name)
+                end
+            end)
+        end)
+    end
+end)
+
+-- Monitor new players joining
+players.PlayerAdded:Connect(function(player)
+    print("[NEW PLAYER] " .. player.Name .. " joined the game!")
+    
+    player.CharacterAdded:Connect(function(character)
+        wait(1)
+        local weapon = getPlayerWeapon(player)
+        if weapon then
+            print("[SPAWNED] " .. player.Name .. " spawned with: " .. weapon)
+        end
+        
+        -- Monitor this character
+        character.ChildAdded:Connect(function(child)
+            if child:IsA("LocalScript") and weaponSet[child.Name] then
+                print("[EQUIPPED] " .. player.Name .. " equipped: " .. child.Name)
+            end
+        end)
+        
+        character.ChildRemoved:Connect(function(child)
+            if child:IsA("LocalScript") and weaponSet[child.Name] then
+                print("[REMOVED] " .. player.Name .. " removed: " .. child.Name)
+            end
+        end)
+    end)
+end)
+
+-- Monitor players leaving
+players.PlayerRemoving:Connect(function(player)
+    local weapon = getPlayerWeapon(player)
+    if weapon then
+        print("[PLAYER LEFT] " .. player.Name .. " left with: " .. weapon)
+    else
+        print("[PLAYER LEFT] " .. player.Name .. " left the game!")
+    end
+end)
+
+print("Monitoring started! Weapon changes will be detected in real-time...")
